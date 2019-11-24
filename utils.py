@@ -51,6 +51,7 @@ def get_index2word_sentence2index():
         tmp_stat_feature.append(special_words_count)
 
         # 将文本转化为索引
+        sentence = sentence.replace("can't", "can not")
         sentence = sentence.replace("'re", " are")
         sentence = sentence.replace("n't", " not")
         sentence = sentence.replace("what's", "what is")
@@ -94,8 +95,10 @@ def get_word2vec(word2index):
 # sentence2index 为 [[1, 2]]时,生成[[vec1, vec2]] 词向量维度为300,句子间无padding
 def get_index2vec(sentence2index, index2word, word2vec):
     sentenceVec = []
-    for indexList in sentence2index:
+    #for indexList in sentence2index:
+    while(len(sentence2index) > 0):
         tmpVec = []
+        indexList = sentence2index[0]
         for index in indexList:
             if index not in word2vec.keys():
                 tmpVec.append(np.zeros(300))
@@ -104,6 +107,7 @@ def get_index2vec(sentence2index, index2word, word2vec):
                 vec = word2vec[word]
                 tmpVec.append(vec)
         sentenceVec.append(tmpVec)
+        del sentence2index[0]
     return sentenceVec
 
 
@@ -138,9 +142,9 @@ def getData():
     with open("./data/word2vec", "rb") as f:
         word2vec = pickle.load(f)
 
-    sentenceVec = get_index2vec(sentence2index, index2word, word2vec)
+    #sentenceVec = get_index2vec(sentence2index, index2word, word2vec)
 
-    del sentence2index, index2word, word2vec
+    #del sentence2index, index2word, word2vec
 
     # 获取句子的target  [0, 1, ...]
     with open("./data/targets", "rb") as f:
@@ -151,11 +155,11 @@ def getData():
     with open("./data/statistics_feature", "rb") as f:
         statistics_feature = pickle.load(f)
 
-    return sentenceVec, targets, statistics_feature
+    return sentence2index, index2word, word2vec, targets, statistics_feature
 
 
 if __name__ == "__main__":
-    preprocess()
+    #preprocess()
     # 如果之前做过一次preprocess,之后都不需要调用preprocess,直接getData
     sentenceVec, targets, statistics_feature = getData()
     print("Finished!")
