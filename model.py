@@ -119,11 +119,38 @@ def accuracy(model, valid_sentences, valid_length, valid_stats_features, valid_t
         prob = F.softmax(logit, dim = 1)[:,1]
 
         res = np.where(prob.cpu() > threshold, 1, 0)
-        acc += np.sum(res == valid_targets.cpu().numpy())
+        acc += np.sum(res == batch_Y.cpu().numpy())
         cnt += res.shape[0]
     acc /= cnt
     return acc
 
+def predict(model, sentences, length, stats_features, targets, batch_size = 100, threshold = 0.5):
+    vec_dim = word2vec['how'].shape[0]
+    ret = np.array([])
+    for k in range((len(sentences)-1)//batch_size + 1):
+        batch_L = length[k*batch_size:(k+1)*batch_size]
+        batch_L, idx = torch.sort(batch_L, descending = True)
+        batch_L = batch_L.to(DEVICE)
+        batch_sentences = sentences[k*batch_size:(k+1)*batch_size]
+        batch_X = []
+        for sentence in batch_sentences:
+            vec = []
+            for index in sentence:
+                if index2word[index] not in word2vec.keys():
+                    vec.append(np.zeros(vec_dim))
+                else:
+                    vec.append(word2vec[index2word[index]])
+            batch_X.append(torch.tensor(vec))
+        batch_X = torch.nn.utils.rnn.pad_sequence(batch_X, batch_first=True).float().to(DEVICE)
+        batch_Y = targets[k*batch_size:(k+1)*batch_size][idx].to(DEVICE)
+        batch_F = stats_features[k*batch_size:(k+1)*batch_size][idx].to(DEVICE)
+
+        logit = model.forward(batch_X, batch_L, batch_F)
+        prob = F.softmax(logit, dim = 1)[:,1]
+
+        res = np.where(prob.cpu() > threshold, 1, 0)
+        ret = np.r_[ret, res]
+    return ret
 
 def train(model, train_sentences, train_stats_features, train_targets, index2word, word2vec, valid_train_rate = 0.1, learning_rate = 0.001, batch_size = 100, optimizer = "Adam", iterations = 100):
     vec_dim = word2vec['how'].shape[0]
@@ -151,6 +178,7 @@ def train(model, train_sentences, train_stats_features, train_targets, index2wor
     train_start_time = time.perf_counter()
     for epoch in range(iterations):
         for k in range((len(train_sentences)-1)//batch_size + 1):
+            #s = time.perf_counter()
             optimizer.zero_grad()
             model.zero_grad()
 
@@ -176,20 +204,30 @@ def train(model, train_sentences, train_stats_features, train_targets, index2wor
             
             loss.backward()
             optimizer.step()
-        print("loss in epoch {}: {}".format(epoch+1, loss))
+            #e = time.perf_counter()
+            #print("time cost this batch: {}".format(e-s), end = "")
+            print("loss in epoch {} and batch {}: {}".format(epoch+1, k+1, loss))
+            losses.append(loss)
+        #print("last loss in epoch {}: {}".format(epoch+1, loss))
     train_stop_time = time.perf_counter()
     print("Total Training Time: {} seconds".format(train_stop_time - train_start_time))
+    plt.plot(range(1, 1 + len(losses)), losses)
+    plt.xlabel("iterations")
+    plt.ylabel("loss function")
+    plt.show()
+    plt.savefig("loss.jpg")
     model.eval()
 
     # threshold is for toxic sentences, i.e. model will judge a sentence toxic when output_sofrmax(toxic) > threshold
-    acc = accuracy(model, valid_sentences, valid_length, valid_stats_features, valid_targets, threshold = 0.5)
+    acc = accuracy(model, valid_sentences, valid_length, valid_stats_features, valid_targets, threshold = 0.5, batch_size = batch_size)
     print("Accuracy on validation set:{}".format(acc))
 
     # save model into binary file
     with open("./model", 'wb') as f:
         pickle.dump(model, f)
 
-sentence2index, index2word, word2vec, train_targets, train_stats_features = getData()
-model = quora_detector(word2vec['how'].shape[0], len(train_stats_features[0]))
-# here [:1000] is for small data test
-train(model, sentence2index[:1000], train_stats_features[:1000], train_targets[:1000], index2word, word2vec, iterations = 5)
+if __name__ == "__main__":
+    sentence2index, index2word, word2vec, train_targets, train_stats_features = getData()
+    model = quora_detector(word2vec['how'].shape[0], len(train_stats_features[0]))
+    # here [:1000] is for small data test
+    train(model, sentence2index, train_stats_features, train_targets, index2word, word2vec, valid_train_rate = 0.1, learning_rate = 0.001, batch_size = 500, optimizer = "Adam", iterations = 1)
