@@ -180,12 +180,20 @@ def getData():
     with open("./data/statistics_feature_0", "rb") as f:
         statistics_feature_0 = pickle.load(f)
 
+<<<<<<< HEAD
     return sentence2index_1, sentence2index_0, targets_1, targets_0, \
            statistics_feature_1, statistics_feature_0, index2word, word2vec
 
 
 if __name__ == "__main__":
     # preprocess()
+=======
+    return sentence2index, index2word, word2vec, targets, statistics_feature
+
+
+if __name__ == "__main__":
+    #preprocess()
+>>>>>>> d12089ae8332eb2a12b721132dd810b8ec1f9883
     # 如果之前做过一次preprocess,之后都不需要调用preprocess,直接getData
     sentence2index_1, sentence2index_0, targets_1, targets_0, \
     statistics_feature_1, statistics_feature_0, index2word, word2vec = getData()
