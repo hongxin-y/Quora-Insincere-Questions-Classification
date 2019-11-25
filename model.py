@@ -216,12 +216,12 @@ def train_eval(model, sentences, stats_features, targets, index2word, word2vec, 
                 e = time.perf_counter()
                 #print("time cost this batch: {}".format(e-s), end = "")
                 print("loss in epoch {} and batch {}: {}".format(epoch+1, k+1, loss))
-                losses.append(float(loss))
+                #losses.append(float(loss))
                 #valid_pred = predict(model, valid_sentences, valid_length, valid_stats_features, batch_size = batch_size, threshold = threshold)
                 #train_pred = predict(model, train_sentences, train_length, train_stats_features, batch_size = batch_size, threshold = threshold)
                 #test_errors.append(float(accuracy_score(valid_targets, valid_pred)))
                 #train_errors.append(float(accuracy_score(train_targets, train_pred)))
-            #print("last loss in epoch {}: {}".format(epoch+1, loss))
+            print("last loss in epoch {}: {}".format(epoch+1, loss))
         train_stop_time = time.perf_counter()
         print("Total Training Time: {} seconds".format(train_stop_time - train_start_time))
 
@@ -262,7 +262,7 @@ if __name__ == "__main__":
         statistics_feature_1, statistics_feature_0, sample_num = 1000000, pos_sample_rate = 0.3)
     del sentence2index_1, sentence2index_0, targets_1, targets_0, statistics_feature_1, statistics_feature_0
     for th in [0.5]:
-        with open("./model", 'rb') as f:
-            model = quora_detector(word2vec['how'].shape[0], len(train_stats_features[0]))
+        #with open("./model", 'rb') as f:
+        model = quora_detector(word2vec['how'].shape[0], len(train_stats_features[0]))
         train_eval(model, sentence2index, train_stats_features, train_targets, index2word, word2vec, \
             valid_sample_rate = 0.2, learning_rate = 0.001, batch_size = 512, optimizer = "Adam", iterations = 35, threshold = th, training=True)
