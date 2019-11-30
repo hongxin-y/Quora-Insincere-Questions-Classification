@@ -32,6 +32,7 @@ class quora_detector(nn.Module):
         self.cated_dense = nn.Linear(128, 128)
         self.dropout = nn.Dropout(p = 0.5)
         self.batchnorm = nn.BatchNorm1d(128)
+        self.batchnorm_2 = nn.BatchNorm1d(64)
         
         self.final_dense = nn.Linear(64, 1)
         self.initialize()
@@ -57,14 +58,15 @@ class quora_detector(nn.Module):
         seq = F.dropout2d(seq, p = 0.5, training=True, inplace=False)
         seq = seq.permute(0,2,1)
         '''
-        #seq = torch.nn.utils.rnn.pack_padded_sequence(seq, length, batch_first = True)
+        context = torch.nn.utils.rnn.pack_padded_sequence(seq, length, batch_first = True)
 
-        context, _ = self.rnn_1(seq)
+        context, _ = self.rnn_1(context)
         #context = self.batchnorm_1(context)
         context, _ = self.rnn_2(context)
-        #context, _ = torch.nn.utils.rnn.pad_packed_sequence(context, batch_first = True)
-        #context = self.last_element(context, length)
-        context = self.batchnorm(context[:,-1,:])[:,:,None]
+        context, _ = torch.nn.utils.rnn.pad_packed_sequence(context, batch_first = True)
+        context = self.last_element(context, length)
+        #context = context[:,-1,:]
+        context = self.batchnorm(context)[:,:,None]
         
         context = context.permute(0,2,1)
         # 1d convolution layer, 64 convolution kernels(to batchsize*64*128)
@@ -72,8 +74,9 @@ class quora_detector(nn.Module):
         # global max pooling(to batchsize*64(*1))
         context = F.max_pool1d(context, kernel_size = context.shape[2:])
         context = context[:,:,-1]
+        #context = self.dropout(context)
         context = F.relu(context)
-        output = context
+        #output = self.batchnorm_2(context)
 
         '''
         # stats features embedding(to batchsize*64)
@@ -94,6 +97,13 @@ class quora_detector(nn.Module):
         # final output, 2 classes(to batchsize*2)
         output = self.final_dense(context)
         return output
+
+    def last_element(self, output, length):
+        ret = []
+        for i in range(output.shape[0]):
+            ret.append(output[:,int(length[i]-1),:][i])
+        return torch.cat(ret,0).view(output.shape[0],-1)
+
 '''
 # random generated test case
 x = torch.randn(32,35,300)
@@ -107,7 +117,7 @@ model.forward(x, l, y)
 # Convert values to embeddings
 def text_to_array(text):
     empyt_emb = np.zeros(300)
-    text = text[:-1].split()[:30]
+    text = text[:-1].split()
     embeds = []
     for x in text:
         if x in embeddings_index:
@@ -115,12 +125,12 @@ def text_to_array(text):
         else:
             embeds.append(np.zeros(300))
     # embeds = [embeddings_index.get(x, empyt_emb) for x in text]
-    embeds+= [empyt_emb] * (30 - len(embeds))
+    embeds+= [empyt_emb]# * (30 - len(embeds))
     return np.array(embeds)
 
 def predict(model, sentences, batch_size = 100, threshold = 0.5, pred_bar = True):
     sentences = np.array(sentences)
-    length = torch.tensor(list(map(len, sentences)))
+    length = torch.tensor(list(map(word_len, sentences)))
     ret = np.array([])
     iterator = tqdm(range((len(sentences)-1)//batch_size + 1)) if pred_bar == True else range((len(sentences)-1)//batch_size + 1)
     for k in iterator:
@@ -130,8 +140,8 @@ def predict(model, sentences, batch_size = 100, threshold = 0.5, pred_bar = True
 
         batch_sentences = sentences[k*batch_size:(k+1)*batch_size][idx]
         
-        batch_X = torch.tensor([text_to_array(sentence) for sentence in batch_sentences]).float().to(DEVICE)
-        #batch_X = torch.nn.utils.rnn.pad_sequence(batch_X, batch_first=True).float().to(DEVICE)
+        batch_X = [torch.tensor(text_to_array(sentence)) for sentence in batch_sentences]
+        batch_X = torch.nn.utils.rnn.pad_sequence(batch_X, batch_first=True).float().to(DEVICE)
 
         logit = model.forward(batch_X, batch_L)[:,0]
 
@@ -143,17 +153,23 @@ def predict(model, sentences, batch_size = 100, threshold = 0.5, pred_bar = True
         ret = np.r_[ret, res]
     return ret
 
-def train(model, train_df, val_df, learning_rate = 0.001, batch_size = 100, optimizer = "Adam", iterations = 100, threshold = 0.5, setp_per_epoch = 1000):
+def word_len(sentence):
+    return len(sentence.split())
+
+def train(model, train_df, val_df, learning_rate = 0.001, batch_size = 100, optimizer = "Adam", iterations = 100, threshold = 0.5, step_per_epoch = 1000):
+    torch.manual_seed(123)
     train_sentences = np.array(train_df['question_text'])
     train_targets = torch.tensor(np.array(train_df['target']))
-    train_length = torch.tensor(list(map(len, train_sentences)))
+    train_length = torch.tensor(list(map(word_len, train_sentences)))
+    #list(map(len, train_sentences))
+    #train_stats_features = 
 
     if optimizer == "SGD":
         optimizer = torch.optim.SGD(model.parameters(), lr = learning_rate)
     else:
         optimizer = torch.optim.Adam(model.parameters(), lr = learning_rate)
 
-    # put model on GPU and parallelize
+    # put model on GPU
     model.to(DEVICE)
     #model = nn.DataParallel(model)
 
@@ -168,12 +184,13 @@ def train(model, train_df, val_df, learning_rate = 0.001, batch_size = 100, opti
     train_start_time = time.perf_counter()
     val_show = val_df[:3000]
     for epoch in range(iterations):
-        idx = np.random.permutation(train_sentences.shape[0])
-        train_sentences = train_sentences[idx]
-        train_targets = train_targets[idx]
-        step_per_epoch = min(setp_per_epoch, (len(train_sentences)-1)//batch_size + 1)
-        with tqdm(total = setp_per_epoch, desc='epoch {}'.format(epoch+1)) as t:
-            for k in range(setp_per_epoch):
+        shuffle_idx = np.random.permutation(train_sentences.shape[0])
+        train_sentences = train_sentences[shuffle_idx]
+        train_targets = train_targets[shuffle_idx]
+        train_length = train_length[shuffle_idx]
+        step = min(step_per_epoch, (len(train_sentences)-1)//batch_size + 1)
+        with tqdm(total = step, desc='epoch {}'.format(epoch+1)) as t:
+            for k in range(step):
                 # free unreferenced cuda memory and put gradient zero
                 torch.cuda.empty_cache()
                 optimizer.zero_grad()
@@ -184,8 +201,8 @@ def train(model, train_df, val_df, learning_rate = 0.001, batch_size = 100, opti
 
                 batch_sentences = train_sentences[k*batch_size:(k+1)*batch_size][idx]
                 
-                batch_X = torch.tensor([text_to_array(sentence) for sentence in batch_sentences]).float().to(DEVICE)
-                #batch_X = torch.nn.utils.rnn.pad_sequence(batch_X, batch_first=True).float().to(DEVICE)
+                batch_X = [torch.tensor(text_to_array(sentence)) for sentence in batch_sentences]
+                batch_X = torch.nn.utils.rnn.pad_sequence(batch_X, batch_first=True).float().to(DEVICE)
                 batch_Y = train_targets[k*batch_size:(k+1)*batch_size][idx].float().to(DEVICE)
 
                 logit = model.forward(batch_X, batch_L)[:,0]
@@ -200,10 +217,6 @@ def train(model, train_df, val_df, learning_rate = 0.001, batch_size = 100, opti
         #print("last loss in epoch {}: {}".format(epoch+1, loss))
     train_stop_time = time.perf_counter()
     print("Total Training Time: {} seconds".format(train_stop_time - train_start_time))
-
-    # save model into binary file
-    with open("./model", 'wb') as f:
-        pickle.dump(model, f)
 
     # show and save loss-iteration plot
     plt.plot(range(1, 1 + len(losses)), losses)
@@ -220,30 +233,64 @@ if __name__ == "__main__":
 
     train_df = pd.read_csv("./data/train_split.csv")
     train_df, val_df = train_test_split(train_df, test_size=VALID_SAMPLE_RATE)
-    #train_df = train_df.iloc[:100000]
+    #train_df = train_df.iloc[:10000]
     #val_df = val_df.iloc[:1000]
 
     for th in [0.5]:
-        
-        model = quora_detector(embeddings_index['how'].shape[0])
-        train(model, train_df, val_df, \
-            learning_rate = 0.0001, batch_size = 128, optimizer = "Adam", iterations = 20, threshold = th, setp_per_epoch = 1000)
-        
-        '''
-        with open("./model", 'rb') as f:
-            model = pickle.load(f)
-        '''
-        model.eval()
-        # Final test
-        test_df = pd.read_csv("data/test_split.csv")
-        prediction = predict(model, test_df['question_text'], batch_size = 512)
-        print("Evaluation loading")
-        acc = accuracy_score(test_df['target'], prediction)
-        f1 = f1_score(test_df['target'], prediction)
-        print("Accuracy: {}".format(acc))
-        print("f1 score: {}".format(f1))
-        fpr, tpr, _ = metrics.roc_curve(test_df['target'], prediction)
-        print("AUC: {}".format(metrics.auc(fpr, tpr)))
-        print("Accuracy on ground truth 0(TNR): {}".format(1-fpr[1]))
-        print("Accuracy on ground truth 1(TPR,recall): {}".format(tpr[1]))
-        print("Balanced accuracy: {}".format((1-fpr[1] + tpr[1])/2))
+        for step_per_epoch in [300, 500]:
+            for epoches in [20, 30]:
+                model = quora_detector(embeddings_index['how'].shape[0])
+                train(model, train_df, val_df, \
+                    learning_rate = 0.001, batch_size = 512, optimizer = "Adam", iterations = epoches, threshold = th, step_per_epoch = step_per_epoch)
+                
+                '''
+                with open("./model", 'rb') as f:
+                    model = pickle.load(f)
+                '''
+                model.eval()
+                print("Evaluation start with threshold {}, step per epoch {}, iterations number {}".format(th, step_per_epoch, epoches))
+
+                print("Training prediction loading")
+                train_df = pd.read_csv("./data/train_split.csv").sample(100000)
+                prediction = predict(model, train_df['question_text'], batch_size = 512)
+                acc = accuracy_score(train_df['target'], prediction)
+                f1 = f1_score(train_df['target'], prediction)
+                print("Accuracy: {}".format(acc))
+                print("f1 score: {}".format(f1))
+                fpr, tpr, _ = metrics.roc_curve(train_df['target'], prediction)
+                print("AUC: {}".format(metrics.auc(fpr, tpr)))
+                print("Accuracy on ground truth 0(TNR): {}".format(1-fpr[1]))
+                print("Accuracy on ground truth 1(TPR,recall): {}".format(tpr[1]))
+                print("Balanced accuracy: {}".format((1-fpr[1] + tpr[1])/2))
+
+                # evaluation on validation set
+                print("Predition loading")
+                #train_df = pd.read_csv("./data/train_split.csv").sample(100000)
+                prediction = predict(model, val_df['question_text'], batch_size = 512)
+                acc = accuracy_score(val_df['target'], prediction)
+                f1 = f1_score(val_df['target'], prediction)
+                print("Accuracy: {}".format(acc))
+                print("f1 score: {}".format(f1))
+                fpr, tpr, _ = metrics.roc_curve(val_df['target'], prediction)
+                print("AUC: {}".format(metrics.auc(fpr, tpr)))
+                print("Accuracy on ground truth 0(TNR): {}".format(1-fpr[1]))
+                print("Accuracy on ground truth 1(TPR,recall): {}".format(tpr[1]))
+                print("Balanced accuracy: {}".format((1-fpr[1] + tpr[1])/2))
+
+                # Final test
+                print("Evaluation loading")
+                test_df = pd.read_csv("data/test_split.csv")
+                prediction = predict(model, test_df['question_text'], batch_size = 512)
+                acc = accuracy_score(test_df['target'], prediction)
+                f1 = f1_score(test_df['target'], prediction)
+                print("Accuracy: {}".format(acc))
+                print("f1 score: {}".format(f1))
+                fpr, tpr, _ = metrics.roc_curve(test_df['target'], prediction)
+                print("AUC: {}".format(metrics.auc(fpr, tpr)))
+                print("Accuracy on ground truth 0(TNR): {}".format(1-fpr[1]))
+                print("Accuracy on ground truth 1(TPR,recall): {}".format(tpr[1]))
+                print("Balanced accuracy: {}".format((1-fpr[1] + tpr[1])/2))
+
+                # save model into binary file
+                with open("./model_" + str(np.round(f1, 4)), 'wb') as f:
+                    pickle.dump(model, f)
