@@ -21,6 +21,16 @@ from utils import getData
 torch.manual_seed(123)
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+def dice_loss(input, target):
+    smooth = 1.
+
+    iflat = input.view(-1)
+    tflat = target.view(-1)
+    intersection = (iflat * tflat).sum()
+    
+    return 1 - ((2. * intersection + smooth) /
+              (iflat.sum() + tflat.sum() + smooth))
+
 class quora_detector(nn.Module):
     def __init__(self, vec_dim):
         super(quora_detector, self).__init__()
@@ -29,10 +39,10 @@ class quora_detector(nn.Module):
         
         self.conv = nn.Conv1d(in_channels=1, out_channels=64, kernel_size=1)
         #self.stat_dense = nn.Linear(fea_num, 64)
-        self.cated_dense = nn.Linear(128, 128)
+        self.cated_dense = nn.Linear(64, 128)
         self.dropout = nn.Dropout(p = 0.5)
         self.batchnorm = nn.BatchNorm1d(128)
-        self.batchnorm_2 = nn.BatchNorm1d(64)
+        self.batchnorm_2 = nn.BatchNorm1d(128)
         
         self.final_dense = nn.Linear(64, 1)
         self.initialize()
@@ -74,7 +84,7 @@ class quora_detector(nn.Module):
         # global max pooling(to batchsize*64(*1))
         context = F.max_pool1d(context, kernel_size = context.shape[2:])
         context = context[:,:,-1]
-        #context = self.dropout(context)
+        context = self.dropout(context)
         context = F.relu(context)
         #output = self.batchnorm_2(context)
 
@@ -87,13 +97,13 @@ class quora_detector(nn.Module):
         # concat two embeddings(to batchsize*128)
         output = torch.cat((context, stat_features), 1)
         '''
-        '''
+        
         # full connection layer with dropout(0.5) and batchnorm layer(to batchsize*128)
         output = self.cated_dense(context)
-        #output = self.batchnorm(output)
+        output = self.batchnorm_2(output)
         output = F.relu(output)
-        #output = self.dropout(output)
-        '''
+        output = self.dropout(output)
+        
         # final output, 2 classes(to batchsize*2)
         output = self.final_dense(context)
         return output
@@ -145,7 +155,7 @@ def predict(model, sentences, batch_size = 100, threshold = 0.5, pred_bar = True
 
         logit = model.forward(batch_X, batch_L)[:,0]
 
-        prob = prob = torch.sigmoid(logit)
+        prob = torch.sigmoid(logit)
         
         # recover the order the data
         _, rev_idx = torch.sort(idx)
@@ -206,7 +216,8 @@ def train(model, train_df, val_df, learning_rate = 0.001, batch_size = 100, opti
                 batch_Y = train_targets[k*batch_size:(k+1)*batch_size][idx].float().to(DEVICE)
 
                 logit = model.forward(batch_X, batch_L)[:,0]
-                loss = criterion(logit, batch_Y)
+                probs = torch.sigmoid(logit)
+                loss = criterion(logit, batch_Y)# + dice_loss(probs, batch_Y)
 
                 loss.backward()
                 optimizer.step()
@@ -236,9 +247,16 @@ if __name__ == "__main__":
     #train_df = train_df.iloc[:10000]
     #val_df = val_df.iloc[:1000]
 
+    # resample 
+    # 0.15 pos_neg_ratio, result f1 = 0.65
+    new_neg_df = train_df[(train_df['target'] == 0)]
+    num_pos = int(0.3*new_neg_df.shape[0])
+    new_pos_df = train_df[(train_df['target'] == 1)].sample(num_pos, replace = True)
+    train_df = pd.concat([new_neg_df, new_pos_df]).sample(frac = 1)
+
     for th in [0.5]:
-        for step_per_epoch in [300, 500]:
-            for epoches in [20, 30]:
+        for step_per_epoch in [300]:
+            for epoches in [30]:
                 model = quora_detector(embeddings_index['how'].shape[0])
                 train(model, train_df, val_df, \
                     learning_rate = 0.001, batch_size = 512, optimizer = "Adam", iterations = epoches, threshold = th, step_per_epoch = step_per_epoch)
@@ -251,13 +269,13 @@ if __name__ == "__main__":
                 print("Evaluation start with threshold {}, step per epoch {}, iterations number {}".format(th, step_per_epoch, epoches))
 
                 print("Training prediction loading")
-                train_df = pd.read_csv("./data/train_split.csv").sample(100000)
-                prediction = predict(model, train_df['question_text'], batch_size = 512)
-                acc = accuracy_score(train_df['target'], prediction)
-                f1 = f1_score(train_df['target'], prediction)
+                train_part_df = pd.read_csv("./data/train_split.csv").sample(100000)
+                prediction = predict(model, train_part_df['question_text'], batch_size = 512)
+                acc = accuracy_score(train_part_df['target'], prediction)
+                f1 = f1_score(train_part_df['target'], prediction)
                 print("Accuracy: {}".format(acc))
                 print("f1 score: {}".format(f1))
-                fpr, tpr, _ = metrics.roc_curve(train_df['target'], prediction)
+                fpr, tpr, _ = metrics.roc_curve(train_part_df['target'], prediction)
                 print("AUC: {}".format(metrics.auc(fpr, tpr)))
                 print("Accuracy on ground truth 0(TNR): {}".format(1-fpr[1]))
                 print("Accuracy on ground truth 1(TPR,recall): {}".format(tpr[1]))
