@@ -21,7 +21,7 @@ def get_index2word_sentence2index():
     special_words = ["stupid", "discriminat", "dictatorship", "black", "gay", "race", "penis", "hypocritical", "kill",
                      "muslim", "sex", "political", "fuck", "dick", "vagina"]
 
-    data = pd.read_csv("./data/train.csv")
+    data = pd.read_csv("./data/train_split.csv")
 
     for i in range(data.shape[0]):
         sentence = data.iloc[i, 1]
@@ -94,12 +94,13 @@ def get_index2word_sentence2index():
 def get_word2vec(word2index):
     word2vec = {}
     model_glove = KeyedVectors.load("./embedding/glove.840B.300d.gensim")
-    model_paragram = KeyedVectors.load("./embedding/paragram_300_sl999.gensim")
+    #model_paragram = KeyedVectors.load("./embedding/paragram_300_sl999.gensim")
 
     for key in word2index.keys():
-        if key in model_glove and key in model_paragram:
-            word2vec[key] = model_glove[key] * 0.7 + model_paragram[key] * 0.3
-
+        if key in model_glove:
+            word2vec[key] = model_glove[key]
+         #and key in model_paragram:
+         #   + model_paragram[key] * 0
     return word2vec
 
 
