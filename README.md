@@ -1,6 +1,6 @@
 # Quora Insincere Questions Classification
 
-Detect toxic content to improve online conversations
+In this project, we try to implement some neural networks to identify toxic and divisive questions on Quora. We construct two different architectures and try to use bootstrapping resampling, statistical features, different padding methods and spatial dropout to improve performance. The first model is slightly more complicated, but it works very well; another one simplifies the previous model, but still maintains a relatively good result. We also have found a baseline from Kaggle whose F1-score is 0.62. After tuning our models, the F1-score of them is about 0.65. 
 
 [kaggle address](https://www.kaggle.com/c/quora-insincere-questions-classification/overview)
 
