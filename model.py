@@ -100,7 +100,6 @@ model = quora_detector(300, 10)
 model.forward(x, l, y)
 '''
 
-
 # Convert values to embeddings
 def text_to_array(text):
     empyt_emb = np.zeros(300)
