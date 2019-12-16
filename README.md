@@ -8,6 +8,27 @@ In this project, we try to implement some neural networks to identify toxic and 
 
 [Download Embedding](https://www.kaggle.com/iezepov/gensim-embeddings-dataset)
 
-Download pre-trained embeddings and make sure "glove.840B.300d.gensim", "glove.840B.300d.gensim.vectors.npy", "paragram_300_sl999.gensim" and "paragram_300_sl999.gensim.vectors.npy" are under the ./embedding
+Download pre-trained embeddings and make sure "glove.840B.300d.gensim", "glove.840B.300d.gensim.vectors.npy", "paragram_300_sl999.gensim" and "paragram_300_sl999.gensim.vectors.npy" are under the ./embeddings
 
-Put "train.csv" and "test.csv" under ./data
+Put "train.csv" and "test.csv" from kaggle under ./data
+
+## Train Model
+
+Split training set into the new training set and test set using:
+
+```python
+python splitData.py
+```
+
+Train the model.
+
+```
+python model.py
+```
+
+or
+
+```
+python model_sr.py
+```
+
