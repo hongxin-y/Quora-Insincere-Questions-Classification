@@ -301,7 +301,7 @@ if __name__ == "__main__":
         train_df = pd.read_csv("./data/train_split.csv")
         train_df, val_df = train_test_split(train_df, test_size=VALID_SAMPLE_RATE)
 
-        f = open('./model_sr', 'rb')
+        f = open('./model2_best', 'rb')
         # evaluation on validation set
         model = pickle.load(f)
 
@@ -315,25 +315,3 @@ if __name__ == "__main__":
         acc = accuracy_score(val_df['target'], prediction)
         f1 = f1_score(val_df['target'], prediction)
         print(f1)
-        # f1s.append(f1)
-        # print(threshold, f1)
-        #
-        # plt.plot(thresholds, f1s)
-        # plt.xlabel("threshold")
-        # plt.ylabel("f1 score on validation set")
-        # plt.savefig("./model_0.6613_threshold.png")
-        # plt.clf()
-
-        # # Final test
-        # print("Evaluation loading")
-        # test_df = pd.read_csv("data/test_split.csv")
-        # prediction = predict(model, test_df['question_text'], batch_size=512)
-        # acc = accuracy_score(test_df['target'], prediction)
-        # f1 = f1_score(test_df['target'], prediction)
-        # print("Accuracy: {}".format(acc))
-        # print("f1 score: {}".format(f1))
-        # fpr, tpr, _ = metrics.roc_curve(test_df['target'], prediction)
-        # print("AUC: {}".format(metrics.auc(fpr, tpr)))
-        # print("Accuracy on ground truth 0(TNR): {}".format(1 - fpr[1]))
-        # print("Accuracy on ground truth 1(TPR,recall): {}".format(tpr[1]))
-        # print("Balanced accuracy: {}".format((1 - fpr[1] + tpr[1]) / 2))
