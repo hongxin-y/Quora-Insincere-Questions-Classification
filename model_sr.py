@@ -227,67 +227,113 @@ def train(model, train_df, val_df, learning_rate=0.001, batch_size=100, optimize
 
 
 if __name__ == "__main__":
-    VALID_SAMPLE_RATE = 0.1
+    is_train = False
+    if is_train:
+        VALID_SAMPLE_RATE = 0.1
 
-    embeddings_index = KeyedVectors.load("./embeddings/glove.840B.300d.gensim")
-    print('finish loading embedding!')
+        embeddings_index = KeyedVectors.load("./embeddings/glove.840B.300d.gensim")
+        print('finish loading embedding!')
 
-    train_df = pd.read_csv("./data/train_split.csv")
-    train_df, val_df = train_test_split(train_df, test_size=VALID_SAMPLE_RATE)
+        train_df = pd.read_csv("./data/train_split.csv")
+        train_df, val_df = train_test_split(train_df, test_size=VALID_SAMPLE_RATE)
 
-    th = 0.5
-    step_per_epoch = 300
-    epoches = 20
+        th = 0.5
+        step_per_epoch = 300
+        epoches = 20
 
-    model = quora_detector(embeddings_index['how'].shape[0], 5)
-    train(model, train_df, val_df, learning_rate=0.001, batch_size=512, optimizer="Adam", iterations=epoches, threshold=th,
-          step_per_epoch=step_per_epoch)
+        model = quora_detector(embeddings_index['how'].shape[0], 5)
+        train(model, train_df, val_df, learning_rate=0.001, batch_size=512, optimizer="Adam", iterations=epoches, threshold=th,
+              step_per_epoch=step_per_epoch)
 
-    model.eval()
-    print("Evaluation start with threshold {}, step per epoch {}, iterations number {}".format(th,
-                                                                                               step_per_epoch,
-                                                                                               epoches))
+        model.eval()
+        print("Evaluation start with threshold {}, step per epoch {}, iterations number {}".format(th,
+                                                                                                   step_per_epoch,
+                                                                                                   epoches))
 
-    print("Training prediction loading")
-    train_df = pd.read_csv("./data/train_split.csv").sample(100000)
-    prediction = predict(model, train_df['question_text'], batch_size=512)
-    acc = accuracy_score(train_df['target'], prediction)
-    f1 = f1_score(train_df['target'], prediction)
-    print("Accuracy: {}".format(acc))
-    print("f1 score: {}".format(f1))
-    fpr, tpr, _ = metrics.roc_curve(train_df['target'], prediction)
-    print("AUC: {}".format(metrics.auc(fpr, tpr)))
-    print("Accuracy on ground truth 0(TNR): {}".format(1 - fpr[1]))
-    print("Accuracy on ground truth 1(TPR,recall): {}".format(tpr[1]))
-    print("Balanced accuracy: {}".format((1 - fpr[1] + tpr[1]) / 2))
+        print("Training prediction loading")
+        train_df = pd.read_csv("./data/train_split.csv").sample(100000)
+        prediction = predict(model, train_df['question_text'], batch_size=512)
+        acc = accuracy_score(train_df['target'], prediction)
+        f1 = f1_score(train_df['target'], prediction)
+        print("Accuracy: {}".format(acc))
+        print("f1 score: {}".format(f1))
+        fpr, tpr, _ = metrics.roc_curve(train_df['target'], prediction)
+        print("AUC: {}".format(metrics.auc(fpr, tpr)))
+        print("Accuracy on ground truth 0(TNR): {}".format(1 - fpr[1]))
+        print("Accuracy on ground truth 1(TPR,recall): {}".format(tpr[1]))
+        print("Balanced accuracy: {}".format((1 - fpr[1] + tpr[1]) / 2))
 
-    # evaluation on validation set
-    print("Predition loading")
-    prediction = predict(model, val_df['question_text'], batch_size=512)
-    acc = accuracy_score(val_df['target'], prediction)
-    f1 = f1_score(val_df['target'], prediction)
-    print("Accuracy: {}".format(acc))
-    print("f1 score: {}".format(f1))
-    fpr, tpr, _ = metrics.roc_curve(val_df['target'], prediction)
-    print("AUC: {}".format(metrics.auc(fpr, tpr)))
-    print("Accuracy on ground truth 0(TNR): {}".format(1 - fpr[1]))
-    print("Accuracy on ground truth 1(TPR,recall): {}".format(tpr[1]))
-    print("Balanced accuracy: {}".format((1 - fpr[1] + tpr[1]) / 2))
+        # evaluation on validation set
+        print("Predition loading")
+        prediction = predict(model, val_df['question_text'], batch_size=512)
+        acc = accuracy_score(val_df['target'], prediction)
+        f1 = f1_score(val_df['target'], prediction)
+        print("Accuracy: {}".format(acc))
+        print("f1 score: {}".format(f1))
+        fpr, tpr, _ = metrics.roc_curve(val_df['target'], prediction)
+        print("AUC: {}".format(metrics.auc(fpr, tpr)))
+        print("Accuracy on ground truth 0(TNR): {}".format(1 - fpr[1]))
+        print("Accuracy on ground truth 1(TPR,recall): {}".format(tpr[1]))
+        print("Balanced accuracy: {}".format((1 - fpr[1] + tpr[1]) / 2))
 
-    # Final test
-    print("Evaluation loading")
-    test_df = pd.read_csv("data/test_split.csv")
-    prediction = predict(model, test_df['question_text'], batch_size=512)
-    acc = accuracy_score(test_df['target'], prediction)
-    f1 = f1_score(test_df['target'], prediction)
-    print("Accuracy: {}".format(acc))
-    print("f1 score: {}".format(f1))
-    fpr, tpr, _ = metrics.roc_curve(test_df['target'], prediction)
-    print("AUC: {}".format(metrics.auc(fpr, tpr)))
-    print("Accuracy on ground truth 0(TNR): {}".format(1 - fpr[1]))
-    print("Accuracy on ground truth 1(TPR,recall): {}".format(tpr[1]))
-    print("Balanced accuracy: {}".format((1 - fpr[1] + tpr[1]) / 2))
+        # Final test
+        print("Evaluation loading")
+        test_df = pd.read_csv("data/test_split.csv")
+        prediction = predict(model, test_df['question_text'], batch_size=512)
+        acc = accuracy_score(test_df['target'], prediction)
+        f1 = f1_score(test_df['target'], prediction)
+        print("Accuracy: {}".format(acc))
+        print("f1 score: {}".format(f1))
+        fpr, tpr, _ = metrics.roc_curve(test_df['target'], prediction)
+        print("AUC: {}".format(metrics.auc(fpr, tpr)))
+        print("Accuracy on ground truth 0(TNR): {}".format(1 - fpr[1]))
+        print("Accuracy on ground truth 1(TPR,recall): {}".format(tpr[1]))
+        print("Balanced accuracy: {}".format((1 - fpr[1] + tpr[1]) / 2))
 
-    # save model into binary file
-    with open("./model_" + str(np.round(f1, 4)), 'wb') as f:
-        pickle.dump(model, f)
+        # save model into binary file
+        with open("./model_" + str(np.round(f1, 4)), 'wb') as f:
+            pickle.dump(model, f)
+    else:
+        VALID_SAMPLE_RATE = 0.1
+
+        embeddings_index = KeyedVectors.load("./embeddings/glove.840B.300d.gensim")
+
+        train_df = pd.read_csv("./data/train_split.csv")
+        train_df, val_df = train_test_split(train_df, test_size=VALID_SAMPLE_RATE)
+
+        f = open('./model_sr', 'rb')
+        # evaluation on validation set
+        model = pickle.load(f)
+
+        print("Predition loading")
+        # f1s = []
+
+        prediction = predict(model, val_df['question_text'], threshold=0.5, batch_size=512)
+        for i in range(len(prediction)):
+            if prediction[i] != val_df.iloc[i, 2]:
+                print("Sentence: {}, target: {}, prediction: {}".format(val_df.iloc[i, 1], val_df.iloc[i, 2], prediction[i]))
+        acc = accuracy_score(val_df['target'], prediction)
+        f1 = f1_score(val_df['target'], prediction)
+        print(f1)
+        # f1s.append(f1)
+        # print(threshold, f1)
+        #
+        # plt.plot(thresholds, f1s)
+        # plt.xlabel("threshold")
+        # plt.ylabel("f1 score on validation set")
+        # plt.savefig("./model_0.6613_threshold.png")
+        # plt.clf()
+
+        # # Final test
+        # print("Evaluation loading")
+        # test_df = pd.read_csv("data/test_split.csv")
+        # prediction = predict(model, test_df['question_text'], batch_size=512)
+        # acc = accuracy_score(test_df['target'], prediction)
+        # f1 = f1_score(test_df['target'], prediction)
+        # print("Accuracy: {}".format(acc))
+        # print("f1 score: {}".format(f1))
+        # fpr, tpr, _ = metrics.roc_curve(test_df['target'], prediction)
+        # print("AUC: {}".format(metrics.auc(fpr, tpr)))
+        # print("Accuracy on ground truth 0(TNR): {}".format(1 - fpr[1]))
+        # print("Accuracy on ground truth 1(TPR,recall): {}".format(tpr[1]))
+        # print("Balanced accuracy: {}".format((1 - fpr[1] + tpr[1]) / 2))
